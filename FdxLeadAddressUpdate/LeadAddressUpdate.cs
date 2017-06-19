@@ -182,7 +182,8 @@ namespace FdxLeadAddressUpdate
                                     #endregion
 
                                     step = 78;
-                                    url = "http://SMARTCRMSync.1800dentist.com/api/lead/createleadasync?" + apiParmAccCreate;
+                                    //url = "http://SMARTCRMSyncProd.1800dentist.com/api/lead/createlead?" + apiParmAccCreate;
+                                    url = "http://SMARTCRMSync.1800dentist.com/api/lead/createlead?" + apiParmAccCreate;
                                     #endregion
                                 }
                                 #endregion
@@ -308,7 +309,8 @@ namespace FdxLeadAddressUpdate
                                 #endregion
 
                                 step = 25;
-                                url = "http://SMARTCRMSync.1800dentist.com/api/lead/createleadasync?" + apiParmCreate;
+                                //url = "http://SMARTCRMSyncProd.1800dentist.com/api/lead/createlead?" + apiParmCreate;
+                                url = "http://SMARTCRMSync.1800dentist.com/api/lead/createlead?" + apiParmCreate;
                                 step = 26;
                                 #endregion
                             }
@@ -412,7 +414,8 @@ namespace FdxLeadAddressUpdate
                             #endregion
 
                             step = 60;
-                            url = "http://smartcrmsync.1800dentist.com/api/lead/updateleadasync?" + apiParmUpdate;
+                            //url = "http://SMARTCRMSyncProd.1800dentist.com/api/lead/updatelead?" + apiParmUpdate;
+                            url = "http://SMARTCRMSync.1800dentist.com/api/lead/updatelead?" + apiParmUpdate;
                             step = 61;
                             #endregion
                         }
