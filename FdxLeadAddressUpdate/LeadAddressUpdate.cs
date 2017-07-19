@@ -9,6 +9,7 @@ using System.Net;
 using System.Runtime.Serialization.Json;
 using System.ServiceModel;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace FdxLeadAddressUpdate
@@ -83,7 +84,8 @@ namespace FdxLeadAddressUpdate
                                     
                                     step = 6;
                                     if (accountEntity.Attributes.Contains("telephone1"))
-                                        leadEntity["telephone2"] = accountEntity.Attributes["telephone1"];
+                                        leadEntity["telephone2"] = Regex.Replace(accountEntity.Attributes["telephone1"].ToString(),@"[^0-9]+", "");
+                                        //leadEntity["telephone2"] = accountEntity.Attributes["telephone1"].ToString();
                                     
                                     step = 7;
                                     if (accountEntity.Attributes.Contains("name"))
@@ -131,8 +133,10 @@ namespace FdxLeadAddressUpdate
                                     step = 71;
                                     if (accountEntity.Attributes.Contains("telephone1"))
                                     {
-                                        leadEntity["telephone2"] = accountEntity.Attributes["telephone1"].ToString();
-                                        apiParmAccCreate += string.Format("&Phone1={0}", accountEntity.Attributes["telephone1"].ToString());
+                                        leadEntity["telephone2"] = Regex.Replace(accountEntity.Attributes["telephone1"].ToString(),@"[^0-9]+", "");
+                                        //leadEntity["telephone2"] = accountEntity.Attributes["telephone1"].ToString();
+                                        apiParmAccCreate += string.Format("&Phone1={0}", Regex.Replace(accountEntity.Attributes["telephone1"].ToString(), @"[^0-9]+", ""));
+                                        //apiParmAccCreate += string.Format("&Phone1={0}", accountEntity.Attributes["telephone1"].ToString());
                                     }
 
                                     step = 72;
@@ -217,7 +221,8 @@ namespace FdxLeadAddressUpdate
                                 step = 17;
                                 apiParmCreate += string.Format("&Contact={0} {1}", firstName, lastName);
 
-                                string phone = ExistingLead.Attributes["telephone2"].ToString();
+                                string phone = Regex.Replace(ExistingLead.Attributes["telephone2"].ToString(),@"[^0-9]+", "");
+                                //string phone = ExistingLead.Attributes["telephone2"].ToString();
                                 apiParmCreate += string.Format("&Phone1={0}", phone);
 
                                 step = 18;
