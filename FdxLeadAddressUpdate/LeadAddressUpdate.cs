@@ -335,7 +335,9 @@ namespace FdxLeadAddressUpdate
                             if (ExistingLead.Attributes.Contains("fdx_goldmineaccountnumber"))
                             {
                                 goldmineaccno = ExistingLead.Attributes["fdx_goldmineaccountnumber"].ToString();
-                                apiParmUpdate += string.Format("&AccountNo_in={0}", ExistingLead.Attributes["fdx_goldmineaccountnumber"].ToString());
+                                //Encoded the GM Account Number to overcome problem with Special Characters
+                                string encodedgm = WebUtility.UrlEncode(ExistingLead.Attributes["fdx_goldmineaccountnumber"].ToString());
+                                apiParmUpdate += string.Format("&AccountNo_in={0}", encodedgm);
                             }
 
                             step = 52;
