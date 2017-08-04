@@ -98,6 +98,7 @@
     <Reference Include="WindowsBase" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="API_PutResponse.cs" />
     <Compile Include="CRMQueryExpression.cs" />
     <Compile Include="Lead.cs" />
     <Compile Include="LeadAddressUpdate.cs" />

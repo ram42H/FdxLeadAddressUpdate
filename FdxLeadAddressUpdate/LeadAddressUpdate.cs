@@ -31,6 +31,7 @@ namespace FdxLeadAddressUpdate
             string apiParmAccCreate = "";
             string url = "";
             bool updateAccount_GMNo = false;
+            bool createNewGMNo = false;
 
             //Call Input parameter collection to get all the data passes....
             if (context.InputParameters.Contains("Target") && context.InputParameters["Target"] is Entity)
@@ -186,8 +187,17 @@ namespace FdxLeadAddressUpdate
                                     #endregion
 
                                     step = 78;
-                                    //url = "http://SMARTCRMSyncProd.1800dentist.com/api/lead/createlead?" + apiParmAccCreate;
+
+                                    //1. For Pointing to Dev                                    
                                     url = "http://SMARTCRMSync.1800dentist.com/api/lead/createlead?" + apiParmAccCreate;
+
+                                    //2. For Pointing to Stage                                    
+                                    //url = "http://smartcrmsyncstage.1800dentist.com/api/lead/createlead?" + apiParmAccCreate;
+
+                                    //3. For Pointing to Production
+                                    //url = "http://SMARTCRMSyncProd.1800dentist.com/api/lead/createlead?" + apiParmAccCreate;
+
+                                    createNewGMNo = true;
                                     #endregion
                                 }
                                 #endregion
@@ -314,8 +324,17 @@ namespace FdxLeadAddressUpdate
                                 #endregion
 
                                 step = 25;
-                                //url = "http://SMARTCRMSyncProd.1800dentist.com/api/lead/createlead?" + apiParmCreate;
-                                url = "http://SMARTCRMSync.1800dentist.com/api/lead/createlead?" + apiParmCreate;
+
+                                //1. For Pointing to Dev                                    
+                                url = "http://SMARTCRMSync.1800dentist.com/api/lead/createlead?" + apiParmAccCreate;
+
+                                //2. For Pointing to Stage                                    
+                                //url = "http://smartcrmsyncstage.1800dentist.com/api/lead/createlead?" + apiParmAccCreate;
+
+                                //3. For Pointing to Production
+                                //url = "http://SMARTCRMSyncProd.1800dentist.com/api/lead/createlead?" + apiParmAccCreate;
+
+                                createNewGMNo = true;
                                 step = 26;
                                 #endregion
                             }
@@ -421,8 +440,16 @@ namespace FdxLeadAddressUpdate
                             #endregion
 
                             step = 60;
-                            //url = "http://SMARTCRMSyncProd.1800dentist.com/api/lead/updatelead?" + apiParmUpdate;
+
+                            //1. For pointing to Dev
                             url = "http://SMARTCRMSync.1800dentist.com/api/lead/updatelead?" + apiParmUpdate;
+
+                            //2. For pointing to Stage
+                            //url = "http://smartcrmsyncstage.1800dentist.com/api/lead/updatelead?" + apiParmUpdate;
+
+                            //3. For pointing to Production
+                            //url = "http://SMARTCRMSyncProd.1800dentist.com/api/lead/updatelead?" + apiParmUpdate;
+                            
                             step = 61;
                             #endregion
                         }
@@ -430,48 +457,78 @@ namespace FdxLeadAddressUpdate
                         #region Call and update from API....
                         if (!string.IsNullOrEmpty(url))
                         {
-                            Lead leadObj = new Lead();
                             step = 41;
                             const string token = "8b6asd7-0775-4278-9bcb-c0d48f800112";
                             //This zipCode needs to be changed to that of Account
                             var uri = new Uri(url);
                             var request = WebRequest.Create(uri);
-                            request.Method = WebRequestMethods.Http.Post;
+                            if (createNewGMNo)
+                            {
+                                request.Method = WebRequestMethods.Http.Post;
+                            }
+                            else
+                            {
+                                request.Method = WebRequestMethods.Http.Put;
+                            }
                             request.ContentType = "application/json";
                             request.ContentLength = 0;
                             request.Headers.Add("Authorization", token);
                             step = 42;
                             using (var getResponse = request.GetResponse())
                             {
-                                DataContractJsonSerializer serializer = new DataContractJsonSerializer(typeof(Lead));
-
-                                step = 43;
-                                leadObj = (Lead)serializer.ReadObject(getResponse.GetResponseStream());
-                                step = 44;
-                                leadEntity["fdx_goldmineaccountnumber"] = leadObj.goldMineId;
-                                if (leadObj.goNoGo)
+                                //This loop will be entered only if a new GM Account No is created only, and we will be calling POST method. And the response given by POST is serialised using Lead Class
+                                if (createNewGMNo)
                                 {
-                                    step = 45;
-                                    leadEntity["fdx_gonogo"] = new OptionSetValue(756480000);
+                                    DataContractJsonSerializer serializer = new DataContractJsonSerializer(typeof(Lead));
+                                    Lead leadObj = new Lead();
+                                    step = 43;
+                                    leadObj = (Lead)serializer.ReadObject(getResponse.GetResponseStream());
+                                    step = 44;
+                                    leadEntity["fdx_goldmineaccountnumber"] = leadObj.goldMineId;
+
+                                    if (leadObj.goNoGo)
+                                    {
+                                        step = 45;
+                                        leadEntity["fdx_gonogo"] = new OptionSetValue(756480000);
+                                    }
+                                    else
+                                    {
+                                        step = 46;
+                                        leadEntity["fdx_gonogo"] = new OptionSetValue(756480001);
+                                    }
+                                    if (updateAccount_GMNo)
+                                    {
+                                        Entity accountUpdate = new Entity("account")
+                                        {
+                                            Id = accountid
+                                        };
+                                        accountUpdate.Attributes["fdx_goldmineaccountnumber"] = leadObj.goldMineId;
+                                        accountUpdate.Attributes["fdx_gonogo"] = leadObj.goNoGo ? new OptionSetValue(756480000) : new OptionSetValue(756480001);
+                                        service.Update(accountUpdate);
+                                    }
                                 }
+                                //This loop will be entered only if Address is changed for an existing GM Account No, and we will be calling PUT method. And the response given by POST is serialised using API_PutResponse Class
                                 else
                                 {
-                                    step = 46;
-                                    leadEntity["fdx_gonogo"] = new OptionSetValue(756480001);
-                                }
-                                if (updateAccount_GMNo)
-                                {
-                                    Entity accountUpdate = new Entity("account")
+                                    step = 47;
+                                    DataContractJsonSerializer PutSerializer = new DataContractJsonSerializer(typeof(API_PutResponse));
+
+                                    API_PutResponse LeadResponseObj = new API_PutResponse();
+                                    LeadResponseObj = (API_PutResponse)PutSerializer.ReadObject(getResponse.GetResponseStream());
+                                    if (LeadResponseObj.goNoGo)
                                     {
-                                        Id = accountid
-                                    };
-                                    accountUpdate.Attributes["fdx_goldmineaccountnumber"] = leadObj.goldMineId;
-                                    accountUpdate.Attributes["fdx_gonogo"] = leadObj.goNoGo ? new OptionSetValue(756480000) : new OptionSetValue(756480001);
-                                    service.Update(accountUpdate);
+                                        step = 48;
+                                        leadEntity["fdx_gonogo"] = new OptionSetValue(756480000);
+                                    }
+                                    else
+                                    {
+                                        step = 49;
+                                        leadEntity["fdx_gonogo"] = new OptionSetValue(756480001);
+                                    }
                                 }
                             }
                         }
-                        step = 47;
+                        step = 50;
                         #endregion
                     }
                 }
