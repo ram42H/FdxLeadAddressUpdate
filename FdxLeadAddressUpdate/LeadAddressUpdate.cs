@@ -34,7 +34,7 @@ namespace FdxLeadAddressUpdate
             bool createNewGMNo = false;
 
             //Call Input parameter collection to get all the data passes....
-            if (context.InputParameters.Contains("Target") && context.InputParameters["Target"] is Entity)
+            if (context.InputParameters.Contains("Target") && context.InputParameters["Target"] is Entity && context.Depth == 1)
             {
                 Entity leadEntity = (Entity)context.InputParameters["Target"];
 
@@ -189,13 +189,13 @@ namespace FdxLeadAddressUpdate
                                     step = 78;
 
                                     //1. For Pointing to Dev                                    
-                                    url = "http://SMARTCRMSync.1800dentist.com/api/lead/createlead?" + apiParmAccCreate;
+                                    //url = "http://SMARTCRMSync.1800dentist.com/api/lead/createlead?" + apiParmAccCreate;
 
                                     //2. For Pointing to Stage                                    
                                     //url = "http://smartcrmsyncstage.1800dentist.com/api/lead/createlead?" + apiParmAccCreate;
 
                                     //3. For Pointing to Production
-                                    //url = "http://SMARTCRMSyncProd.1800dentist.com/api/lead/createlead?" + apiParmAccCreate;
+                                    url = "http://SMARTCRMSyncProd.1800dentist.com/api/lead/createlead?" + apiParmAccCreate;
 
                                     createNewGMNo = true;
                                     #endregion
@@ -326,13 +326,13 @@ namespace FdxLeadAddressUpdate
                                 step = 25;
 
                                 //1. For Pointing to Dev                                    
-                                url = "http://SMARTCRMSync.1800dentist.com/api/lead/createlead?" + apiParmAccCreate;
+                                //url = "http://SMARTCRMSync.1800dentist.com/api/lead/createlead?" + apiParmCreate;
 
                                 //2. For Pointing to Stage                                    
-                                //url = "http://smartcrmsyncstage.1800dentist.com/api/lead/createlead?" + apiParmAccCreate;
+                                //url = "http://smartcrmsyncstage.1800dentist.com/api/lead/createlead?" + apiParmCreate;
 
                                 //3. For Pointing to Production
-                                //url = "http://SMARTCRMSyncProd.1800dentist.com/api/lead/createlead?" + apiParmAccCreate;
+                                url = "http://SMARTCRMSyncProd.1800dentist.com/api/lead/createlead?" + apiParmCreate;
 
                                 createNewGMNo = true;
                                 step = 26;
@@ -442,13 +442,13 @@ namespace FdxLeadAddressUpdate
                             step = 60;
 
                             //1. For pointing to Dev
-                            url = "http://SMARTCRMSync.1800dentist.com/api/lead/updatelead?" + apiParmUpdate;
+                            //url = "http://SMARTCRMSync.1800dentist.com/api/lead/updatelead?" + apiParmUpdate;
 
                             //2. For pointing to Stage
                             //url = "http://smartcrmsyncstage.1800dentist.com/api/lead/updatelead?" + apiParmUpdate;
 
                             //3. For pointing to Production
-                            //url = "http://SMARTCRMSyncProd.1800dentist.com/api/lead/updatelead?" + apiParmUpdate;
+                            url = "http://SMARTCRMSyncProd.1800dentist.com/api/lead/updatelead?" + apiParmUpdate;
                             
                             step = 61;
                             #endregion
