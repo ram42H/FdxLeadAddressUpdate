@@ -24,7 +24,7 @@ namespace FdxLeadAddressUpdate
 
             //Obtain execution contest from the service provider....
             IPluginExecutionContext context = (IPluginExecutionContext)serviceProvider.GetService(typeof(IPluginExecutionContext));
-            
+
             int step = 0;
             string apiParmCreate = "";
             string apiParmUpdate = "";
@@ -45,15 +45,14 @@ namespace FdxLeadAddressUpdate
                 {
                     IOrganizationServiceFactory serviceFactory = (IOrganizationServiceFactory)serviceProvider.GetService(typeof(IOrganizationServiceFactory));
                     IOrganizationService service = serviceFactory.CreateOrganizationService(context.UserId);
-
-                    //Get current user information....
-                    WhoAmIResponse response = (WhoAmIResponse)service.Execute(new WhoAmIRequest());
+                    IOrganizationService impersonatedService = serviceFactory.CreateOrganizationService(null);
 
                     step = 0;
                     Guid accountid = Guid.Empty;
 
+                    tracingService.Trace("fdx_accountcontext: {0}", leadEntity.Contains("fdx_accountcontext"));
                     //prevents account address update plugin to run below code
-                    if (!leadEntity.Attributes.Contains("fdx_accountcontext")) 
+                    if (!leadEntity.Attributes.Contains("fdx_accountcontext"))
                     {
                         if (leadEntity.Attributes.Contains("parentaccountid"))
                         {
@@ -63,47 +62,50 @@ namespace FdxLeadAddressUpdate
                             {
                                 step = 2;
                                 #region Lead when tagged with account...
-                                Entity accountEntity = service.Retrieve("account", ((EntityReference)leadEntity.Attributes["parentaccountid"]).Id, new ColumnSet("name", "fdx_goldmineaccountnumber", "fdx_gonogo", "address1_line1", "address1_line2", "address1_city", "fdx_stateprovinceid", "fdx_zippostalcodeid", "telephone1", "address1_country"));
+                                ColumnSet columns = new ColumnSet("name", "fdx_goldmineaccountnumber", "fdx_gonogo", "address1_line1", "address1_line2", "address1_city",
+                                        "fdx_stateprovinceid", "fdx_zippostalcodeid", "telephone1", "address1_country",
+                                        "fdx_prospectgroup", "defaultpricelevelid", "fdx_prospectpriority", "fdx_prospectscore", "fdx_prospectpercentile", "fdx_ratesource", "fdx_pprrate", "fdx_subrate", "fdx_prospectradius");
+                                Entity accountEntity = service.Retrieve("account", ((EntityReference)leadEntity.Attributes["parentaccountid"]).Id, columns);
                                 accountid = accountEntity.Id;
-                                
+
                                 //Case 1a: Lead when tagged with account having GM Accout Number
                                 if (accountEntity.Attributes.Contains("fdx_goldmineaccountnumber"))
                                 {
                                     #region Fetch account's address fields and update lead...
-                                    
+
                                     step = 3;
                                     if (accountEntity.Attributes.Contains("fdx_goldmineaccountnumber"))
                                         leadEntity["fdx_goldmineaccountnumber"] = accountEntity.Attributes["fdx_goldmineaccountnumber"].ToString();
-                                    
+
                                     step = 4;
                                     if (accountEntity.Attributes.Contains("fdx_gonogo"))
                                         leadEntity["fdx_gonogo"] = ((OptionSetValue)accountEntity.Attributes["fdx_gonogo"]).Value;
-                                    
+
                                     step = 5;
                                     if (accountEntity.Attributes.Contains("fdx_zippostalcodeid"))
                                         leadEntity["fdx_zippostalcode"] = new EntityReference("fdx_zipcode", ((EntityReference)accountEntity.Attributes["fdx_zippostalcodeid"]).Id);
-                                    
+
                                     step = 6;
                                     //if (accountEntity.Attributes.Contains("telephone1"))
                                     //    leadEntity["telephone2"] = Regex.Replace(accountEntity.Attributes["telephone1"].ToString(),@"[^0-9]+", "");
-                                        //leadEntity["telephone2"] = accountEntity.Attributes["telephone1"].ToString();
-                                    
+                                    //leadEntity["telephone2"] = accountEntity.Attributes["telephone1"].ToString();
+
                                     step = 7;
                                     if (accountEntity.Attributes.Contains("name"))
                                         leadEntity["companyname"] = accountEntity.Attributes["name"];
-                                    
+
                                     step = 8;
                                     if (accountEntity.Attributes.Contains("address1_line1"))
                                         leadEntity["address1_line1"] = accountEntity.Attributes["address1_line1"];
-                                   
+
                                     step = 9;
                                     if (accountEntity.Attributes.Contains("address1_line2"))
                                         leadEntity["address1_line2"] = accountEntity.Attributes["address1_line2"];
-                                    
+
                                     step = 10;
                                     if (accountEntity.Attributes.Contains("address1_city"))
                                         leadEntity["address1_city"] = accountEntity.Attributes["address1_city"];
-                                   
+
                                     step = 11;
                                     if (accountEntity.Attributes.Contains("fdx_stateprovinceid"))
                                     {
@@ -112,10 +114,15 @@ namespace FdxLeadAddressUpdate
                                             leadEntity["fdx_stateprovince"] = new EntityReference("fdx_state", ((EntityReference)accountEntity.Attributes["fdx_stateprovinceid"]).Id);
                                         }
                                     }
-                                    
+
                                     step = 12;
                                     if (accountEntity.Attributes.Contains("address1_country"))
                                         leadEntity["address1_country"] = accountEntity.Attributes["address1_country"];
+
+                                    ProspectData prospectData = GetProspectDataFromAccount(accountEntity);
+                                    Entity leadUpdateWithProspectingData = new Entity("lead", leadEntity.Id);
+                                    UpdateProspectData(leadUpdateWithProspectingData, prospectData);
+                                    impersonatedService.Update(leadUpdateWithProspectingData);
                                     #endregion
                                 }
                                 //Case 1b: Lead when tagged with account which doesn't having GM Accout Number
@@ -208,7 +215,7 @@ namespace FdxLeadAddressUpdate
                                 step = 13;
                                 #region Fetch lead's address fields and do create api call...
 
-                                Entity ExistingLead = service.Retrieve("lead", leadEntity.Id, new ColumnSet("firstname", "lastname", "telephone2", "companyname", "address1_line1","address1_city", "fdx_stateprovince", "fdx_zippostalcode", "address1_country", "fdx_jobtitlerole", "fdx_goldmineaccountnumber"));//, ));
+                                Entity ExistingLead = service.Retrieve("lead", leadEntity.Id, new ColumnSet("firstname", "lastname", "telephone2", "companyname", "address1_line1", "address1_city", "fdx_stateprovince", "fdx_zippostalcode", "address1_country", "fdx_jobtitlerole", "fdx_goldmineaccountnumber"));//, ));
                                 #region create api param string...
                                 //get lead data from query like account basedon lead id 
 
@@ -231,7 +238,7 @@ namespace FdxLeadAddressUpdate
                                 step = 17;
                                 apiParmCreate += string.Format("&Contact={0} {1}", firstName, lastName);
 
-                                string phone = Regex.Replace(ExistingLead.Attributes["telephone2"].ToString(),@"[^0-9]+", "");
+                                string phone = Regex.Replace(ExistingLead.Attributes["telephone2"].ToString(), @"[^0-9]+", "");
                                 //string phone = ExistingLead.Attributes["telephone2"].ToString();
                                 apiParmCreate += string.Format("&Phone1={0}", phone);
 
@@ -340,12 +347,12 @@ namespace FdxLeadAddressUpdate
                             }
                         }
                         //Case 3: Lead with out any account tagged has a address change
-                        if (step == 0) 
+                        if (step == 0)
                         {
                             #region Fetch lead's address fields and do update api call...
 
                             step = 51;
-                            Entity ExistingLead = service.Retrieve("lead", leadEntity.Id, new ColumnSet("firstname", "lastname", "telephone2", "companyname", "address1_line1", "fdx_stateprovince","address1_city", "fdx_zippostalcode", "address1_country", "fdx_jobtitlerole", "fdx_goldmineaccountnumber"));//, ));
+                            Entity ExistingLead = service.Retrieve("lead", leadEntity.Id, new ColumnSet("firstname", "lastname", "telephone2", "companyname", "address1_line1", "fdx_stateprovince", "address1_city", "fdx_zippostalcode", "address1_country", "fdx_jobtitlerole", "fdx_goldmineaccountnumber"));//, ));
                             #region create api param string...
                             //get lead data from query like account basedon lead id 
 
@@ -449,11 +456,12 @@ namespace FdxLeadAddressUpdate
 
                             //3. For pointing to Production
                             //url = "http://SMARTCRMSyncProd.1800dentist.com/api/lead/updatelead?" + apiParmUpdate;
-                            
+
                             step = 61;
                             #endregion
                         }
-
+                        tracingService.Trace("URL: {0}", url);
+                        tracingService.Trace("createNewGMNo: {0}", createNewGMNo);
                         #region Call and update from API....
                         if (!string.IsNullOrEmpty(url))
                         {
@@ -476,6 +484,7 @@ namespace FdxLeadAddressUpdate
                             step = 42;
                             using (var getResponse = request.GetResponse())
                             {
+                                tracingService.Trace("createNewGMNo = " + createNewGMNo);
                                 //This loop will be entered only if a new GM Account No is created only, and we will be calling POST method. And the response given by POST is serialised using Lead Class
                                 if (createNewGMNo)
                                 {
@@ -496,15 +505,32 @@ namespace FdxLeadAddressUpdate
                                         step = 46;
                                         leadEntity["fdx_gonogo"] = new OptionSetValue(756480001);
                                     }
+                                    
+                                    ProspectData prospectData = GetProspectDataFromWebService(leadObj);
+                                    tracingService.Trace(GetProspectDataString(prospectData));
+                                    EntityCollection priceLists = GetPriceListByName(leadObj.priceListName, service);
+                                    EntityCollection prospectGroups = GetProspectGroupByName(leadObj.prospectGroup, service);
+                                    prospectData.PriceListName = leadObj.priceListName;
+                                    if (priceLists.Entities.Count == 1)
+                                        prospectData.PriceListId = priceLists.Entities[0].Id;
+                                    if (prospectGroups.Entities.Count == 1)
+                                        prospectData.ProspectGroupId = prospectGroups.Entities[0].Id;
+
+                                    Entity leadUpdateWithProspectingData = new Entity("lead", leadEntity.Id);
+                                    UpdateProspectData(leadUpdateWithProspectingData, prospectData);
+                                    impersonatedService.Update(leadUpdateWithProspectingData);
+                                    tracingService.Trace("Prospect Data Update");
                                     if (updateAccount_GMNo)
                                     {
+                                        
                                         Entity accountUpdate = new Entity("account")
                                         {
                                             Id = accountid
                                         };
                                         accountUpdate.Attributes["fdx_goldmineaccountnumber"] = leadObj.goldMineId;
                                         accountUpdate.Attributes["fdx_gonogo"] = leadObj.goNoGo ? new OptionSetValue(756480000) : new OptionSetValue(756480001);
-                                        service.Update(accountUpdate);
+                                        UpdateProspectDataOnAccount(accountUpdate, prospectData);
+                                        impersonatedService.Update(accountUpdate);
                                     }
                                 }
                                 //This loop will be entered only if Address is changed for an existing GM Account No, and we will be calling PUT method. And the response given by POST is serialised using API_PutResponse Class
@@ -525,6 +551,19 @@ namespace FdxLeadAddressUpdate
                                         step = 49;
                                         leadEntity["fdx_gonogo"] = new OptionSetValue(756480001);
                                     }
+                                    Entity leadUpdateWithProspectingData = new Entity("lead", leadEntity.Id);
+                                    ProspectData prospectData = GetProspectDataFromWebService(LeadResponseObj);
+                                    tracingService.Trace(GetProspectDataString(prospectData));
+                                    EntityCollection priceLists = GetPriceListByName(LeadResponseObj.priceListName, service);
+                                    EntityCollection prospectGroups = GetProspectGroupByName(LeadResponseObj.prospectGroup, service);
+                                    prospectData.PriceListName = LeadResponseObj.priceListName;
+                                    if (priceLists.Entities.Count == 1)
+                                        prospectData.PriceListId = priceLists.Entities[0].Id;
+                                    if (prospectGroups.Entities.Count == 1)
+                                        prospectData.ProspectGroupId = prospectGroups.Entities[0].Id;
+                                    UpdateProspectData(leadUpdateWithProspectingData, prospectData);
+                                    impersonatedService.Update(leadUpdateWithProspectingData);
+                                    tracingService.Trace("Prospect Data Update");
                                 }
                             }
                         }
@@ -534,6 +573,7 @@ namespace FdxLeadAddressUpdate
                 }
                 catch (FaultException<OrganizationServiceFault> ex)
                 {
+                    tracingService.Trace("LeadAddressUpdate: step {0}, {1}", step, ex.ToString());
                     throw new InvalidPluginExecutionException(string.Format("An error occurred in the LeadAddressUpdate plug-in at Step {0}.", step), ex);
                 }
                 catch (Exception ex)
@@ -542,6 +582,161 @@ namespace FdxLeadAddressUpdate
                     throw;
                 }
             }
+        }
+
+        private ProspectData GetProspectData()
+        {
+            ProspectData prospectData = new ProspectData();
+            prospectData.ProspectGroupId = new Guid("9B3945FC-2728-E811-811D-3863BB34CB20");
+            prospectData.PriceListId = new Guid("8A826A97-0B26-E811-811C-3863BB35EF70");
+            prospectData.Priority = Convert.ToDecimal(1);
+            prospectData.Score = Convert.ToDecimal(2);
+            prospectData.Percentile = Convert.ToDecimal(3);
+            prospectData.RateSource = "Stub";
+            prospectData.PPRRate = Convert.ToDecimal(1);
+            prospectData.SubRate = Convert.ToDecimal(2);
+            prospectData.Radius = 2;
+            return prospectData;
+        }
+
+        private ProspectData GetProspectDataFromWebService(API_PutResponse lead)
+        {
+            ProspectData prospectData = new ProspectData();
+            prospectData.ProspectGroupName = lead.prospectGroup;
+            prospectData.PriceListName = lead.priceListName;
+            prospectData.Priority = lead.prospectPriority;
+            prospectData.Score = lead.prspectScore;
+            prospectData.Percentile = lead.prospectPercentile;
+            prospectData.RateSource = lead.rateSource;
+            prospectData.PPRRate = lead.pprRate;
+            prospectData.SubRate = lead.subRate;
+            prospectData.Radius = lead.prospectRadius;
+            return prospectData;
+        }
+
+        private ProspectData GetProspectDataFromWebService(Lead lead)
+        {
+            ProspectData prospectData = new ProspectData();
+            prospectData.ProspectGroupName = lead.prospectGroup;
+            prospectData.PriceListName = lead.priceListName;
+            prospectData.Priority = lead.prospectPriority;
+            prospectData.Score = lead.prspectScore;
+            prospectData.Percentile = lead.prospectPercentile;
+            prospectData.RateSource = lead.rateSource;
+            prospectData.PPRRate = lead.pprRate;
+            prospectData.SubRate = lead.subRate;
+            prospectData.Radius = lead.prospectRadius;
+            return prospectData;
+        }
+
+        private ProspectData GetProspectDataFromAccount(Entity account)
+        {
+            ProspectData prospectData = new ProspectData();
+            if (account.Contains("fdx_prospectgroup"))
+                prospectData.ProspectGroupId = ((EntityReference)account["fdx_prospectgroup"]).Id;
+            if (account.Contains("defaultpricelevelid"))
+                prospectData.PriceListId = ((EntityReference)account["defaultpricelevelid"]).Id;
+            if (account.Contains("fdx_prospectpriority"))
+                prospectData.Priority = (decimal)account["fdx_prospectpriority"];
+            if (account.Contains("fdx_prospectscore"))
+                prospectData.Score = (decimal)account["fdx_prospectscore"];
+            if (account.Contains("fdx_prospectpercentile"))
+                prospectData.Percentile = (decimal)account["fdx_prospectpercentile"];
+            if (account.Contains("fdx_ratesource"))
+                prospectData.RateSource = (string)account["fdx_ratesource"];
+            if (account.Contains("fdx_pprrate"))
+                prospectData.PPRRate = ((Money)account["fdx_pprrate"]).Value;
+            if (account.Contains("fdx_subrate"))
+                prospectData.SubRate = ((Money)account["fdx_subrate"]).Value;
+            if (account.Contains("fdx_prospectradius"))
+                prospectData.Radius = (int)account["fdx_prospectradius"];
+            return prospectData;
+        }
+
+        private string GetProspectDataString(ProspectData prospectData)
+        {
+            string traceString = "ProspectGroupName=" + prospectData.ProspectGroupName + Environment.NewLine;
+            traceString += "PriceListName=" + prospectData.PriceListName + Environment.NewLine;
+            traceString += "Priority=" + prospectData.Priority.ToString() + Environment.NewLine;
+            traceString += "Score=" + prospectData.Score.ToString() + Environment.NewLine;
+            traceString += "Percentile=" + prospectData.Percentile.ToString() + Environment.NewLine;
+            traceString += "RateSource=" + prospectData.RateSource + Environment.NewLine;
+            traceString += "PPRRate=" + prospectData.PPRRate.ToString() + Environment.NewLine;
+            traceString += "SubRate=" + prospectData.SubRate.ToString() + Environment.NewLine;
+            traceString += "Radius=" + prospectData.Radius.ToString() + Environment.NewLine;
+            return traceString;
+        }
+
+        private void UpdateProspectData(Entity leadRecord, ProspectData prospectData)
+        {
+            if(prospectData.ProspectGroupId.HasValue)
+            {
+                leadRecord["fdx_prospectgroup"] =  new EntityReference("fdx_prospectgroup", prospectData.ProspectGroupId.Value);
+            }
+            else
+            {
+                leadRecord["fdx_prospectgroup"] = null;
+            }
+
+            if (prospectData.PriceListId.HasValue)
+            {
+                leadRecord["fdx_pricelist"] = new EntityReference("pricelevel", prospectData.PriceListId.Value);
+            }
+            else
+            {
+                leadRecord["fdx_pricelist"] = null;
+                leadRecord["fdx_prospectpricelistname"] = null;
+            }
+            
+            leadRecord["fdx_prospectpriority"] = prospectData.Priority.HasValue ? prospectData.Priority : null;
+            leadRecord["fdx_prospectscore"] = prospectData.Score.HasValue ? prospectData.Score : null;
+            leadRecord["fdx_prospectpercentile"] =prospectData.Percentile.HasValue ? prospectData.Percentile : null;
+            leadRecord["fdx_ratesource"] = prospectData.RateSource;
+            leadRecord["fdx_pprrate"] =prospectData.PPRRate.HasValue ? new Money(prospectData.PPRRate.Value) : null;
+            leadRecord["fdx_subrate"] =prospectData.SubRate.HasValue ? new Money(prospectData.SubRate.Value) : null;
+            leadRecord["fdx_prospectradius"] = prospectData.Radius.HasValue? prospectData.Radius : null;
+            leadRecord["fdx_prospectdatalastupdated"] = DateTime.UtcNow;
+        }
+
+        private void UpdateProspectDataOnAccount(Entity accountRecord, ProspectData prospectData)
+        {
+            if (prospectData.ProspectGroupId.HasValue && !prospectData.ProspectGroupId.Equals(Guid.Empty))
+                accountRecord["fdx_prospectgroup"] = new EntityReference("fdx_prospectgroup", prospectData.ProspectGroupId.Value);
+            if (prospectData.PriceListId.HasValue && !prospectData.PriceListId.Equals(Guid.Empty))
+                accountRecord["defaultpricelevelid"] = new EntityReference("pricelevel", prospectData.PriceListId.Value);
+            if (!string.IsNullOrEmpty(prospectData.PriceListName))
+                accountRecord["fdx_pricelistname"] = prospectData.PriceListName;
+            if (prospectData.Priority.HasValue)
+                accountRecord["fdx_prospectpriority"] = prospectData.Priority;
+            if (prospectData.Score.HasValue)
+                accountRecord["fdx_prospectscore"] = prospectData.Score;
+            if (prospectData.Percentile.HasValue)
+                accountRecord["fdx_prospectpercentile"] = prospectData.Percentile;
+            if (!string.IsNullOrEmpty(prospectData.RateSource))
+                accountRecord["fdx_ratesource"] = prospectData.RateSource;
+            if (prospectData.PPRRate.HasValue)
+                accountRecord["fdx_pprrate"] = new Money(prospectData.PPRRate.Value);
+            if (prospectData.SubRate.HasValue)
+                accountRecord["fdx_subrate"] = new Money(prospectData.SubRate.Value);
+            if (prospectData.Radius.HasValue)
+                accountRecord["fdx_prospectradius"] = prospectData.Radius;
+            accountRecord["fdx_prospectdatalastupdated"] = DateTime.UtcNow;
+        }
+
+        private EntityCollection GetPriceListByName(string priceListName, IOrganizationService crmService)
+        {
+            QueryByAttribute queryByPriceList = new QueryByAttribute("pricelevel");
+            queryByPriceList.ColumnSet = new ColumnSet("pricelevelid");
+            queryByPriceList.AddAttributeValue("name", priceListName);
+            return crmService.RetrieveMultiple(queryByPriceList);
+        }
+
+        private EntityCollection GetProspectGroupByName(string prospectGroupName, IOrganizationService crmService)
+        {
+            QueryByAttribute queryByProspectGroup = new QueryByAttribute("fdx_prospectgroup");
+            queryByProspectGroup.ColumnSet = new ColumnSet("fdx_prospectgroupid");
+            queryByProspectGroup.AddAttributeValue("fdx_name", prospectGroupName);
+            return crmService.RetrieveMultiple(queryByProspectGroup);
         }
     }
 }
