@@ -120,9 +120,7 @@ namespace FdxLeadAddressUpdate
                                         leadEntity["address1_country"] = accountEntity.Attributes["address1_country"];
 
                                     ProspectData prospectData = GetProspectDataFromAccount(accountEntity);
-                                    Entity leadUpdateWithProspectingData = new Entity("lead", leadEntity.Id);
-                                    UpdateProspectData(leadUpdateWithProspectingData, prospectData);
-                                    impersonatedService.Update(leadUpdateWithProspectingData);
+                                    UpdateLeadWithImpersonation(leadEntity.Id, impersonatedService, prospectData);
                                     #endregion
                                 }
                                 //Case 1b: Lead when tagged with account which doesn't having GM Accout Number
@@ -507,19 +505,10 @@ namespace FdxLeadAddressUpdate
                                     }
                                     
                                     ProspectData prospectData = GetProspectDataFromWebService(leadObj);
+                                    PopulatePriceListIdAndProspectGroup(service, leadObj, prospectData);
                                     tracingService.Trace(GetProspectDataString(prospectData));
-                                    EntityCollection priceLists = GetPriceListByName(leadObj.priceListName, service);
-                                    EntityCollection prospectGroups = GetProspectGroupByName(leadObj.prospectGroup, service);
-                                    prospectData.PriceListName = leadObj.priceListName;
-                                    if (priceLists.Entities.Count == 1)
-                                        prospectData.PriceListId = priceLists.Entities[0].Id;
-                                    if (prospectGroups.Entities.Count == 1)
-                                        prospectData.ProspectGroupId = prospectGroups.Entities[0].Id;
-
-                                    Entity leadUpdateWithProspectingData = new Entity("lead", leadEntity.Id);
-                                    UpdateProspectData(leadUpdateWithProspectingData, prospectData);
-                                    impersonatedService.Update(leadUpdateWithProspectingData);
-                                    tracingService.Trace("Prospect Data Update");
+                                    UpdateLeadWithImpersonation(leadEntity.Id, impersonatedService, prospectData);
+                                    tracingService.Trace("Prospect Data Updated");
                                     if (updateAccount_GMNo)
                                     {
                                         
@@ -551,19 +540,11 @@ namespace FdxLeadAddressUpdate
                                         step = 49;
                                         leadEntity["fdx_gonogo"] = new OptionSetValue(756480001);
                                     }
-                                    Entity leadUpdateWithProspectingData = new Entity("lead", leadEntity.Id);
                                     ProspectData prospectData = GetProspectDataFromWebService(LeadResponseObj);
+                                    PopulatePriceListIdAndProspectGroup(service, LeadResponseObj, prospectData);
                                     tracingService.Trace(GetProspectDataString(prospectData));
-                                    EntityCollection priceLists = GetPriceListByName(LeadResponseObj.priceListName, service);
-                                    EntityCollection prospectGroups = GetProspectGroupByName(LeadResponseObj.prospectGroup, service);
-                                    prospectData.PriceListName = LeadResponseObj.priceListName;
-                                    if (priceLists.Entities.Count == 1)
-                                        prospectData.PriceListId = priceLists.Entities[0].Id;
-                                    if (prospectGroups.Entities.Count == 1)
-                                        prospectData.ProspectGroupId = prospectGroups.Entities[0].Id;
-                                    UpdateProspectData(leadUpdateWithProspectingData, prospectData);
-                                    impersonatedService.Update(leadUpdateWithProspectingData);
-                                    tracingService.Trace("Prospect Data Update");
+                                    UpdateLeadWithImpersonation(leadEntity.Id, impersonatedService, prospectData);
+                                    tracingService.Trace("Prospect Data Updated");
                                 }
                             }
                         }
@@ -582,6 +563,33 @@ namespace FdxLeadAddressUpdate
                     throw;
                 }
             }
+        }
+
+        private void UpdateLeadWithImpersonation(Guid leadId, IOrganizationService impersonatedService, ProspectData prospectData)
+        {
+            Entity leadUpdateWithProspectingData = new Entity("lead", leadId);
+            UpdateProspectData(leadUpdateWithProspectingData, prospectData);
+            impersonatedService.Update(leadUpdateWithProspectingData);
+        }
+
+        private void PopulatePriceListIdAndProspectGroup(IOrganizationService service, Lead leadObj, ProspectData prospectData)
+        {
+            EntityCollection priceLists = GetPriceListByName(leadObj.priceListName, service);
+            EntityCollection prospectGroups = GetProspectGroupByName(leadObj.prospectGroup, service);
+            if (priceLists.Entities.Count == 1)
+                prospectData.PriceListId = priceLists.Entities[0].Id;
+            if (prospectGroups.Entities.Count == 1)
+                prospectData.ProspectGroupId = prospectGroups.Entities[0].Id;
+        }
+
+        private void PopulatePriceListIdAndProspectGroup(IOrganizationService service, API_PutResponse leadObj, ProspectData prospectData)
+        {
+            EntityCollection priceLists = GetPriceListByName(leadObj.priceListName, service);
+            EntityCollection prospectGroups = GetProspectGroupByName(leadObj.prospectGroup, service);
+            if (priceLists.Entities.Count == 1)
+                prospectData.PriceListId = priceLists.Entities[0].Id;
+            if (prospectGroups.Entities.Count == 1)
+                prospectData.ProspectGroupId = prospectGroups.Entities[0].Id;
         }
 
         private ProspectData GetProspectData()
@@ -635,7 +643,11 @@ namespace FdxLeadAddressUpdate
             if (account.Contains("fdx_prospectgroup"))
                 prospectData.ProspectGroupId = ((EntityReference)account["fdx_prospectgroup"]).Id;
             if (account.Contains("defaultpricelevelid"))
-                prospectData.PriceListId = ((EntityReference)account["defaultpricelevelid"]).Id;
+            {
+                EntityReference priceList = (EntityReference)account["defaultpricelevelid"];
+                prospectData.PriceListId = priceList.Id;
+                prospectData.PriceListName = priceList.Name;
+            }
             if (account.Contains("fdx_prospectpriority"))
                 prospectData.Priority = (decimal)account["fdx_prospectpriority"];
             if (account.Contains("fdx_prospectscore"))
@@ -681,6 +693,7 @@ namespace FdxLeadAddressUpdate
             if (prospectData.PriceListId.HasValue)
             {
                 leadRecord["fdx_pricelist"] = new EntityReference("pricelevel", prospectData.PriceListId.Value);
+                leadRecord["fdx_prospectpricelistname"] = prospectData.PriceListName;
             }
             else
             {
