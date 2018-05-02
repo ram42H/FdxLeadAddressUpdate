@@ -1,12 +1,13 @@
 ﻿using FdxLeadAssignmentPlugin;
 using Microsoft.Crm.Sdk.Messages;
 using Microsoft.Xrm.Sdk;
+using Microsoft.Xrm.Sdk.Messages;
 using Microsoft.Xrm.Sdk.Query;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
-using System.Runtime.Serialization.Json;
+using System.Runtime.Serialization.Json; 
 using System.ServiceModel;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -118,7 +119,6 @@ namespace FdxLeadAddressUpdate
                                     step = 12;
                                     if (accountEntity.Attributes.Contains("address1_country"))
                                         leadEntity["address1_country"] = accountEntity.Attributes["address1_country"];
-
                                     ProspectData prospectData = GetProspectDataFromAccount(accountEntity);
                                     UpdateLeadWithImpersonation(leadEntity.Id, impersonatedService, prospectData);
                                     #endregion
@@ -567,9 +567,12 @@ namespace FdxLeadAddressUpdate
 
         private void UpdateLeadWithImpersonation(Guid leadId, IOrganizationService impersonatedService, ProspectData prospectData)
         {
+            UpdateRequest updateRequest = new UpdateRequest();
             Entity leadUpdateWithProspectingData = new Entity("lead", leadId);
             UpdateProspectData(leadUpdateWithProspectingData, prospectData);
-            impersonatedService.Update(leadUpdateWithProspectingData);
+            updateRequest.Target = leadUpdateWithProspectingData;
+            updateRequest["SuppressDuplicateDetection"] = true;
+            impersonatedService.Execute(updateRequest);
         }
 
         private void PopulatePriceListIdAndProspectGroup(IOrganizationService service, Lead leadObj, ProspectData prospectData)
