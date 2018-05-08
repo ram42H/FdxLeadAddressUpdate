@@ -19,6 +19,11 @@ namespace FdxLeadAddressUpdate
     {
         public void Execute(IServiceProvider serviceProvider)
         {
+            string DEV_ENVIRONMENT_URL = "http://SMARTCRMSync.1800dentist.com/api";
+            string STAGE_ENVIRONMENT_URL = "http://SMARTCRMSyncStage.1800dentist.com/api";
+            string PROD_ENVIRONMENT_URL = "http://SMARTCRMSync.1800dentist.com/api";
+            string smartCrmSyncWebServiceUrl = STAGE_ENVIRONMENT_URL;
+
             //Extract the tracing service for use in debugging sandboxed plug-ins....
             ITracingService tracingService =
                 (ITracingService)serviceProvider.GetService(typeof(ITracingService));
@@ -65,7 +70,7 @@ namespace FdxLeadAddressUpdate
                                 #region Lead when tagged with account...
                                 ColumnSet columns = new ColumnSet("name", "fdx_goldmineaccountnumber", "fdx_gonogo", "address1_line1", "address1_line2", "address1_city",
                                         "fdx_stateprovinceid", "fdx_zippostalcodeid", "telephone1", "address1_country",
-                                        "fdx_prospectgroup", "defaultpricelevelid", "fdx_prospectpriority", "fdx_prospectscore", "fdx_prospectpercentile", "fdx_ratesource", "fdx_pprrate", "fdx_subrate", "fdx_prospectradius");
+                                        "fdx_prospectgroup", "defaultpricelevelid", "fdx_prospectpriority", "fdx_prospectscore", "fdx_prospectpercentile", "fdx_ratesource", "fdx_pprrate", "fdx_subrate", "fdx_prospectradius", "fdx_prospectdatalastupdated");
                                 Entity accountEntity = service.Retrieve("account", ((EntityReference)leadEntity.Attributes["parentaccountid"]).Id, columns);
                                 accountid = accountEntity.Id;
 
@@ -119,6 +124,7 @@ namespace FdxLeadAddressUpdate
                                     step = 12;
                                     if (accountEntity.Attributes.Contains("address1_country"))
                                         leadEntity["address1_country"] = accountEntity.Attributes["address1_country"];
+
                                     ProspectData prospectData = GetProspectDataFromAccount(accountEntity);
                                     UpdateLeadWithImpersonation(leadEntity.Id, impersonatedService, prospectData);
                                     #endregion
@@ -193,14 +199,7 @@ namespace FdxLeadAddressUpdate
 
                                     step = 78;
 
-                                    //1. For Pointing to Dev                                    
-                                    //url = "http://SMARTCRMSync.1800dentist.com/api/lead/createlead?" + apiParmAccCreate;
-
-                                    //2. For Pointing to Stage                                    
-                                    //url = "http://smartcrmsyncstage.1800dentist.com/api/lead/createlead?" + apiParmAccCreate;
-
-                                    //3. For Pointing to Production
-                                    url = "http://SMARTCRMSyncProd.1800dentist.com/api/lead/createlead?" + apiParmAccCreate;
+                                    url = smartCrmSyncWebServiceUrl + "/lead/createlead?" + apiParmAccCreate;
 
                                     createNewGMNo = true;
                                     #endregion
@@ -330,14 +329,7 @@ namespace FdxLeadAddressUpdate
 
                                 step = 25;
 
-                                //1. For Pointing to Dev                                    
-                                //url = "http://SMARTCRMSync.1800dentist.com/api/lead/createlead?" + apiParmCreate;
-
-                                //2. For Pointing to Stage                                    
-                                //url = "http://smartcrmsyncstage.1800dentist.com/api/lead/createlead?" + apiParmCreate;
-
-                                //3. For Pointing to Production
-                                url = "http://SMARTCRMSyncProd.1800dentist.com/api/lead/createlead?" + apiParmCreate;
+                                url = smartCrmSyncWebServiceUrl + "/lead/createlead?" + apiParmAccCreate;
 
                                 createNewGMNo = true;
                                 step = 26;
@@ -446,14 +438,7 @@ namespace FdxLeadAddressUpdate
 
                             step = 60;
 
-                            //1. For pointing to Dev
-                            //url = "http://SMARTCRMSync.1800dentist.com/api/lead/updatelead?" + apiParmUpdate;
-
-                            //2. For pointing to Stage
-                            //url = "http://smartcrmsyncstage.1800dentist.com/api/lead/updatelead?" + apiParmUpdate;
-
-                            //3. For pointing to Production
-                            url = "http://SMARTCRMSyncProd.1800dentist.com/api/lead/updatelead?" + apiParmUpdate;
+                            url = smartCrmSyncWebServiceUrl + "/lead/updatelead?" + apiParmUpdate;
 
                             step = 61;
                             #endregion
@@ -665,6 +650,8 @@ namespace FdxLeadAddressUpdate
                 prospectData.SubRate = ((Money)account["fdx_subrate"]).Value;
             if (account.Contains("fdx_prospectradius"))
                 prospectData.Radius = (int)account["fdx_prospectradius"];
+            if (account.Contains("fdx_prospectdatalastupdated"))
+                prospectData.LastUpdated = (DateTime)account["fdx_prospectdatalastupdated"];
             return prospectData;
         }
 
@@ -696,7 +683,6 @@ namespace FdxLeadAddressUpdate
             if (prospectData.PriceListId.HasValue)
             {
                 leadRecord["fdx_pricelist"] = new EntityReference("pricelevel", prospectData.PriceListId.Value);
-                leadRecord["fdx_prospectpricelistname"] = prospectData.PriceListName;
             }
             else
             {
@@ -711,7 +697,14 @@ namespace FdxLeadAddressUpdate
             leadRecord["fdx_pprrate"] =prospectData.PPRRate.HasValue ? new Money(prospectData.PPRRate.Value) : null;
             leadRecord["fdx_subrate"] =prospectData.SubRate.HasValue ? new Money(prospectData.SubRate.Value) : null;
             leadRecord["fdx_prospectradius"] = prospectData.Radius.HasValue? prospectData.Radius : null;
-            leadRecord["fdx_prospectdatalastupdated"] = DateTime.UtcNow;
+            if (prospectData.LastUpdated.HasValue)
+            {
+                leadRecord["fdx_prospectdatalastupdated"] = prospectData.LastUpdated.Value;
+            }
+            else
+            {
+                leadRecord["fdx_prospectdatalastupdated"] = DateTime.UtcNow;
+            }
         }
 
         private void UpdateProspectDataOnAccount(Entity accountRecord, ProspectData prospectData)
@@ -720,8 +713,6 @@ namespace FdxLeadAddressUpdate
                 accountRecord["fdx_prospectgroup"] = new EntityReference("fdx_prospectgroup", prospectData.ProspectGroupId.Value);
             if (prospectData.PriceListId.HasValue && !prospectData.PriceListId.Equals(Guid.Empty))
                 accountRecord["defaultpricelevelid"] = new EntityReference("pricelevel", prospectData.PriceListId.Value);
-            if (!string.IsNullOrEmpty(prospectData.PriceListName))
-                accountRecord["fdx_pricelistname"] = prospectData.PriceListName;
             if (prospectData.Priority.HasValue)
                 accountRecord["fdx_prospectpriority"] = prospectData.Priority;
             if (prospectData.Score.HasValue)
