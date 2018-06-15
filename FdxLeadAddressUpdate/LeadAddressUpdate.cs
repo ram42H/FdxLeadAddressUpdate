@@ -21,7 +21,7 @@ namespace FdxLeadAddressUpdate
         {
             string DEV_ENVIRONMENT_URL = "http://SMARTCRMSync.1800dentist.com/api";
             string STAGE_ENVIRONMENT_URL = "http://SMARTCRMSyncStage.1800dentist.com/api";
-            string PROD_ENVIRONMENT_URL = "http://SMARTCRMSync.1800dentist.com/api";
+            string PROD_ENVIRONMENT_URL = "http://SMARTCRMSyncProd.1800dentist.com/api";
             string smartCrmSyncWebServiceUrl = STAGE_ENVIRONMENT_URL;
 
             //Extract the tracing service for use in debugging sandboxed plug-ins....
