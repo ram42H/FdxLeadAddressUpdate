@@ -7,7 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
-using System.Runtime.Serialization.Json; 
+using System.Runtime.Serialization.Json;
 using System.ServiceModel;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -22,7 +22,7 @@ namespace FdxLeadAddressUpdate
             string DEV_ENVIRONMENT_URL = "http://SMARTCRMSync.1800dentist.com/api";
             string STAGE_ENVIRONMENT_URL = "http://SMARTCRMSyncStage.1800dentist.com/api";
             string PROD_ENVIRONMENT_URL = "http://SMARTCRMSyncProd.1800dentist.com/api";
-            string smartCrmSyncWebServiceUrl = STAGE_ENVIRONMENT_URL;
+            string smartCrmSyncWebServiceUrl = PROD_ENVIRONMENT_URL;
 
             //Extract the tracing service for use in debugging sandboxed plug-ins....
             ITracingService tracingService =
@@ -36,6 +36,7 @@ namespace FdxLeadAddressUpdate
             string apiParmUpdate = "";
             string apiParmAccCreate = "";
             string url = "";
+            string Prospectscoreblankmsg = "";
             bool updateAccount_GMNo = false;
             bool createNewGMNo = false;
 
@@ -70,7 +71,7 @@ namespace FdxLeadAddressUpdate
                                 #region Lead when tagged with account...
                                 ColumnSet columns = new ColumnSet("name", "fdx_goldmineaccountnumber", "fdx_gonogo", "address1_line1", "address1_line2", "address1_city",
                                         "fdx_stateprovinceid", "fdx_zippostalcodeid", "telephone1", "address1_country",
-                                        "fdx_prospectgroup", "defaultpricelevelid", "fdx_prospectpriority", "fdx_prospectscore", "fdx_prospectpercentile", "fdx_ratesource", "fdx_pprrate", "fdx_subrate", "fdx_prospectradius", "fdx_prospectdatalastupdated");
+                                        "fdx_prospectgroup", "defaultpricelevelid", "fdx_prospectpriority", "fdx_prospectscore", "fdx_prospectpercentile", "fdx_ratesource", "fdx_pprrate", "fdx_subrate", "fdx_prospectradius", "fdx_prospectdatalastupdated", "fdx_prospectscoreblankmessage");
                                 Entity accountEntity = service.Retrieve("account", ((EntityReference)leadEntity.Attributes["parentaccountid"]).Id, columns);
                                 accountid = accountEntity.Id;
 
@@ -476,6 +477,7 @@ namespace FdxLeadAddressUpdate
                                     step = 43;
                                     leadObj = (Lead)serializer.ReadObject(getResponse.GetResponseStream());
                                     step = 44;
+                                    tracingService.Trace("Output received is - " + leadObj);
                                     leadEntity["fdx_goldmineaccountnumber"] = leadObj.goldMineId;
 
                                     if (leadObj.goNoGo)
@@ -488,7 +490,11 @@ namespace FdxLeadAddressUpdate
                                         step = 46;
                                         leadEntity["fdx_gonogo"] = new OptionSetValue(756480001);
                                     }
-                                    
+                                    if ((!string.IsNullOrEmpty(leadObj.prospectScoreBlankMessage)))
+                                    {
+                                        Prospectscoreblankmsg = leadObj.prospectScoreBlankMessage;
+                                    }
+
                                     ProspectData prospectData = GetProspectDataFromWebService(leadObj);
                                     PopulatePriceListIdAndProspectGroup(service, leadObj, prospectData);
                                     tracingService.Trace(GetProspectDataString(prospectData));
@@ -496,7 +502,7 @@ namespace FdxLeadAddressUpdate
                                     tracingService.Trace("Prospect Data Updated");
                                     if (updateAccount_GMNo)
                                     {
-                                        
+
                                         Entity accountUpdate = new Entity("account")
                                         {
                                             Id = accountid
@@ -515,6 +521,11 @@ namespace FdxLeadAddressUpdate
 
                                     API_PutResponse LeadResponseObj = new API_PutResponse();
                                     LeadResponseObj = (API_PutResponse)PutSerializer.ReadObject(getResponse.GetResponseStream());
+                                    if ((!string.IsNullOrEmpty(LeadResponseObj.prospectScoreBlankMessage)))
+                                    {
+                                        Prospectscoreblankmsg = LeadResponseObj.prospectScoreBlankMessage;
+                                    }
+                                    tracingService.Trace("ProspectScoreBlankMessage :" + Prospectscoreblankmsg);
                                     if (LeadResponseObj.goNoGo)
                                     {
                                         step = 48;
@@ -607,6 +618,14 @@ namespace FdxLeadAddressUpdate
             prospectData.PPRRate = lead.pprRate;
             prospectData.SubRate = lead.subRate;
             prospectData.Radius = lead.prospectRadius;
+            if (!string.IsNullOrEmpty(lead.prospectScoreBlankMessage))
+            {
+                prospectData.ProspectScoreBlankMessage = lead.prospectScoreBlankMessage;
+            }
+            else
+            {
+                prospectData.ProspectScoreBlankMessage = "Valid Address";
+            }
             return prospectData;
         }
 
@@ -622,6 +641,14 @@ namespace FdxLeadAddressUpdate
             prospectData.PPRRate = lead.pprRate;
             prospectData.SubRate = lead.subRate;
             prospectData.Radius = lead.prospectRadius;
+            if (!string.IsNullOrEmpty(lead.prospectScoreBlankMessage))
+            {
+                prospectData.ProspectScoreBlankMessage = lead.prospectScoreBlankMessage;
+            }
+            else
+            {
+                prospectData.ProspectScoreBlankMessage = "Valid Address";
+            }
             return prospectData;
         }
 
@@ -652,6 +679,8 @@ namespace FdxLeadAddressUpdate
                 prospectData.Radius = (int)account["fdx_prospectradius"];
             if (account.Contains("fdx_prospectdatalastupdated"))
                 prospectData.LastUpdated = (DateTime)account["fdx_prospectdatalastupdated"];
+            if (account.Contains("fdx_prospectscoreblankmessage"))
+                prospectData.ProspectScoreBlankMessage = (string)account["fdx_prospectscoreblankmessage"];
             return prospectData;
         }
 
@@ -666,14 +695,15 @@ namespace FdxLeadAddressUpdate
             traceString += "PPRRate=" + prospectData.PPRRate.ToString() + Environment.NewLine;
             traceString += "SubRate=" + prospectData.SubRate.ToString() + Environment.NewLine;
             traceString += "Radius=" + prospectData.Radius.ToString() + Environment.NewLine;
+            traceString += "ProspectScoreBlankMessage" + prospectData.ProspectScoreBlankMessage.ToString() + Environment.NewLine;
             return traceString;
         }
 
         private void UpdateProspectData(Entity leadRecord, ProspectData prospectData)
         {
-            if(prospectData.ProspectGroupId.HasValue)
+            if (prospectData.ProspectGroupId.HasValue)
             {
-                leadRecord["fdx_prospectgroup"] =  new EntityReference("fdx_prospectgroup", prospectData.ProspectGroupId.Value);
+                leadRecord["fdx_prospectgroup"] = new EntityReference("fdx_prospectgroup", prospectData.ProspectGroupId.Value);
             }
             else
             {
@@ -689,14 +719,22 @@ namespace FdxLeadAddressUpdate
                 leadRecord["fdx_pricelist"] = null;
                 leadRecord["fdx_prospectpricelistname"] = null;
             }
-            
+
             leadRecord["fdx_prospectpriority"] = prospectData.Priority.HasValue ? prospectData.Priority : null;
             leadRecord["fdx_prospectscore"] = prospectData.Score.HasValue ? prospectData.Score : null;
-            leadRecord["fdx_prospectpercentile"] =prospectData.Percentile.HasValue ? prospectData.Percentile : null;
+            leadRecord["fdx_prospectpercentile"] = prospectData.Percentile.HasValue ? prospectData.Percentile : null;
             leadRecord["fdx_ratesource"] = prospectData.RateSource;
-            leadRecord["fdx_pprrate"] =prospectData.PPRRate.HasValue ? new Money(prospectData.PPRRate.Value) : null;
-            leadRecord["fdx_subrate"] =prospectData.SubRate.HasValue ? new Money(prospectData.SubRate.Value) : null;
-            leadRecord["fdx_prospectradius"] = prospectData.Radius.HasValue? prospectData.Radius : null;
+            leadRecord["fdx_pprrate"] = prospectData.PPRRate.HasValue ? new Money(prospectData.PPRRate.Value) : null;
+            leadRecord["fdx_subrate"] = prospectData.SubRate.HasValue ? new Money(prospectData.SubRate.Value) : null;
+            leadRecord["fdx_prospectradius"] = prospectData.Radius.HasValue ? prospectData.Radius : null;
+            if (!string.IsNullOrEmpty(prospectData.ProspectScoreBlankMessage))
+            {
+                leadRecord["fdx_prospectscoreblankmessage"] = prospectData.ProspectScoreBlankMessage;
+            }
+            else
+            {
+                leadRecord["fdx_prospectscoreblankmessage"] = "Valid Address";
+            }
             if (prospectData.LastUpdated.HasValue)
             {
                 leadRecord["fdx_prospectdatalastupdated"] = prospectData.LastUpdated.Value;
@@ -705,6 +743,7 @@ namespace FdxLeadAddressUpdate
             {
                 leadRecord["fdx_prospectdatalastupdated"] = DateTime.UtcNow;
             }
+
         }
 
         private void UpdateProspectDataOnAccount(Entity accountRecord, ProspectData prospectData)
@@ -727,6 +766,16 @@ namespace FdxLeadAddressUpdate
                 accountRecord["fdx_subrate"] = new Money(prospectData.SubRate.Value);
             if (prospectData.Radius.HasValue)
                 accountRecord["fdx_prospectradius"] = prospectData.Radius;
+            if (!string.IsNullOrEmpty(prospectData.ProspectScoreBlankMessage))
+            {
+                accountRecord["fdx_prospectscoreblankmessage"] = prospectData.ProspectScoreBlankMessage;
+            }
+            else
+            {
+                accountRecord["fdx_prospectscoreblankmessage"] = "Valid Address";
+            }
+
+
             accountRecord["fdx_prospectdatalastupdated"] = DateTime.UtcNow;
         }
 

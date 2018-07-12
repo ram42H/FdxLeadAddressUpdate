@@ -31,5 +31,7 @@ namespace FdxLeadAddressUpdate
         public int? Radius { get; set; }
 
         public DateTime? LastUpdated { get; set; }
+
+        public string ProspectScoreBlankMessage { get; set; }
     }
 }
